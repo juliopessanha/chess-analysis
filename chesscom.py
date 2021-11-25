@@ -343,6 +343,7 @@ class chess():
                     self.df = self.df.append(df2, ignore_index=True)
 
             self.df['date'] = pd.to_datetime(self.df['date'], dayfirst=True)
+            self.df = self.df.sort_values(by='date')
         else: #If the player does not exist, it stops
             print("There's no %s data on chess.com" % player)
 
@@ -350,51 +351,83 @@ class chess():
         
         #return(self.df)
 
-    def stats(self):
+    def stats(self, timeControl = 'All Time Controls'):
 
-        print("--------------------------------------------------")
-        player = self.df.player.iloc[0]
-        print("      Chess analysis for %s " % (player))
-        print("--------------------------------------------------")
+        if timeControl == 'All Time Controls':
+            dfChess = self.df
+            rating = None
 
-        games_won, games_lost, games_drew, total_games = get_print_info(self.df)
+        elif timeControl.lower() == 'blitz':
+            dfChess = self.df[(self.df.timeControl == '300') | (self.df.timeControl.str.contains('300\+')) | 
+            (self.df.timeControl == '180') | (self.df.timeControl.str.contains('180\+'))]
 
-        percent_win = percent(games_won, total_games)
-        percent_draw = percent(games_drew, total_games)
-        percent_lost = percent(games_lost, total_games)
+        elif timeControl.lower() == 'rapid':
+            dfChess = self.df[(self.df.timeControl == '600') | (self.df.timeControl.str.contains('600\+')) | 
+            (self.df.timeControl == '900') | (self.df.timeControl.str.contains('900\+')) |
+            (self.df.timeControl == '1800') | (self.df.timeControl.str.contains('1800\+'))]
 
-        print("\n%s played %s games\n\n  Wins %s (%s%%)\n  Draws %s (%s%%)\n  Loses %s (%s%%)" % (player, total_games, games_won, percent_win \
-                                                                            , games_drew, percent_draw, games_lost, percent_lost))
+        elif timeControl.lower() == 'bullet':
+             dfChess = self.df[(self.df.timeControl == '60') | (self.df.timeControl.str.contains('60\+'))]
+             
 
-        #########################################################################
-        print('\nMost played opening as')
+        else:
+            print("There's no %s time control" % (timeControl))
+            
+        try:
 
-        df_whiteGames = get_color_opening(self.df, 'White')
-        color_analysis_print(df_whiteGames)
-        del df_whiteGames
+            games_won, games_lost, games_drew, total_games = get_print_info(dfChess)
 
-        df_blackGames = get_color_opening(self.df, 'Black')
-        color_analysis_print(df_blackGames)
-        del df_blackGames
+            percent_win = percent(games_won, total_games)
+            percent_draw = percent(games_drew, total_games)
+            percent_lost = percent(games_lost, total_games)
 
-        #########################################################################
+            print("--------------------------------------------------")
+            player = self.df.player.iloc[0]
+            print("   Chess analysis for %s  - %s" % (player, timeControl.title()))
+            print("--------------------------------------------------")
 
-        #The opponent the player most played agaisnt
-        df_mostPlayed = self.df[self.df.opponent == self.df.opponent.mode()[0]]
-        print('\n-----------------\n\nArch-enemy: %s\n' % (df_mostPlayed.opponent.iloc[0]))
+            rating = dfChess.playerElo.iloc[-1]
+            peakRating = pd.to_numeric(dfChess.playerElo).max()
+            if rating != None:
+                print('Current ELO: %s' % rating)
+                print('Peak ELO: %s' % peakRating)
 
-        #Some info to print
-        games_won, games_lost, games_drew, total_games = get_print_info(df_mostPlayed)
+            print("\n%s played %s games\n\n  Wins %s (%s%%)\n  Draws %s (%s%%)\n  Loses %s (%s%%)" % (player, total_games, games_won, percent_win \
+                                                                                , games_drew, percent_draw, games_lost, percent_lost))
 
-        percent_win = percent(games_won, total_games)
-        percent_draw = percent(games_drew, total_games)
-        percent_lost = percent(games_lost, total_games)
+            #########################################################################
+            print('\nMost played opening as')
 
-        print('%s won %s games out of %s against %s\n' % \
-              (player, games_won, total_games, df_mostPlayed.opponent.iloc[0]))
+            df_whiteGames = get_color_opening(dfChess, 'White')
+            color_analysis_print(df_whiteGames)
+            del df_whiteGames
 
-        del df_mostPlayed
-        print('  Wins: %s%%\n  Draws: %s%%\n  Loses: %s%%\n' % (percent_win, percent_draw, percent_lost))
+            df_blackGames = get_color_opening(dfChess, 'Black')
+            color_analysis_print(df_blackGames)
+            del df_blackGames
+
+            #########################################################################
+
+            #The opponent the player most played agaisnt
+            df_mostPlayed = dfChess[dfChess.opponent == dfChess.opponent.mode()[0]]
+            print('\n-----------------\n\nArch-enemy: %s\n' % (df_mostPlayed.opponent.iloc[0]))
+
+            #Some info to print
+            games_won, games_lost, games_drew, total_games = get_print_info(df_mostPlayed)
+
+            percent_win = percent(games_won, total_games)
+            percent_draw = percent(games_drew, total_games)
+            percent_lost = percent(games_lost, total_games)
+
+            print('%s won %s games out of %s against %s\n' % \
+                (player, games_won, total_games, df_mostPlayed.opponent.iloc[0]))
+
+            del df_mostPlayed
+            print('  Wins: %s%%\n  Draws: %s%%\n  Loses: %s%%\n' % (percent_win, percent_draw, percent_lost))
+
+        except:
+
+            print("No games found")
 
 if __name__ == "__main__":
     print("-")
