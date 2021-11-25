@@ -311,7 +311,29 @@ def color_analysis_print(df_color):
     #Print the information
     print("    %s: %s, with %s%% winrate" % (color, df_color.opening.mode()[0], percent_win))
     
-    
+#Get the dataframe with the specified time control
+def get_specific_df(df_in, timeControl):
+    if timeControl == 'All Time Controls':
+        dfChess = df_in
+
+    elif timeControl.lower() == 'blitz':
+        dfChess = df_in[(df_in.timeControl == '300') | (df_in.timeControl.str.contains('300\+')) | 
+        (df_in.timeControl == '180') | (df_in.timeControl.str.contains('180\+'))]
+
+    elif timeControl.lower() == 'rapid':
+        dfChess = df_in[(df_in.timeControl == '600') | (df_in.timeControl.str.contains('600\+')) | 
+        (df_in.timeControl == '900') | (df_in.timeControl.str.contains('900\+')) |
+        (df_in.timeControl == '1800') | (df_in.timeControl.str.contains('1800\+'))]
+
+    elif timeControl.lower() == 'bullet':
+            dfChess = df_in[(df_in.timeControl == '60') | (df_in.timeControl.str.contains('60\+'))]
+
+    else:
+        print("There's no %s time control" % (timeControl))
+        return(None)
+
+    return(dfChess)        
+        
 class chess():
     
     def __init__(self):
@@ -353,26 +375,18 @@ class chess():
 
     def stats(self, timeControl = 'All Time Controls', **kwargs):
         ArchEnemy = kwargs.get('ArchEnemy', False)
-        if timeControl == 'All Time Controls':
-            dfChess = self.df
-            rating = None
+        afterDate = kwargs.get('after', False)
+        beforeDate = kwargs.get('before', False)
 
-        elif timeControl.lower() == 'blitz':
-            dfChess = self.df[(self.df.timeControl == '300') | (self.df.timeControl.str.contains('300\+')) | 
-            (self.df.timeControl == '180') | (self.df.timeControl.str.contains('180\+'))]
+        #Get the dataframe from the specific time control
+        dfChess = get_specific_df(self.df, timeControl)
 
-        elif timeControl.lower() == 'rapid':
-            dfChess = self.df[(self.df.timeControl == '600') | (self.df.timeControl.str.contains('600\+')) | 
-            (self.df.timeControl == '900') | (self.df.timeControl.str.contains('900\+')) |
-            (self.df.timeControl == '1800') | (self.df.timeControl.str.contains('1800\+'))]
+        if afterDate != False:
+            dfChess = dfChess[dfChess.date >= afterDate]
 
-        elif timeControl.lower() == 'bullet':
-             dfChess = self.df[(self.df.timeControl == '60') | (self.df.timeControl.str.contains('60\+'))]
-             
+        if beforeDate != False:
+            dfChess = dfChess[dfChess.date <= beforeDate]
 
-        else:
-            print("There's no %s time control" % (timeControl))
-            
         try:
 
             games_won, games_lost, games_drew, total_games = get_print_info(dfChess)
@@ -385,11 +399,11 @@ class chess():
             player = self.df.player.iloc[0]
             print("   Chess analysis for %s  - %s" % (player, timeControl.title()))
             print("--------------------------------------------------")
-
-            rating = dfChess.playerElo.iloc[-1]
-            peakRating = pd.to_numeric(dfChess.playerElo).max()
-            if rating != None:
+            
+            if timeControl != 'All Time Controls':
+                rating = dfChess.playerElo.iloc[-1]
                 print('Current ELO: %s' % rating)
+                peakRating = pd.to_numeric(dfChess.playerElo).max()
                 print('Peak ELO: %s' % peakRating)
 
             print("\n%s played %s games\n\n  Wins %s (%s%%)\n  Draws %s (%s%%)\n  Loses %s (%s%%)" % (player, total_games, games_won, percent_win \
