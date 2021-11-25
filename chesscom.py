@@ -351,8 +351,8 @@ class chess():
         
         #return(self.df)
 
-    def stats(self, timeControl = 'All Time Controls'):
-
+    def stats(self, timeControl = 'All Time Controls', **kwargs):
+        ArchEnemy = kwargs.get('ArchEnemy', False)
         if timeControl == 'All Time Controls':
             dfChess = self.df
             rating = None
@@ -408,22 +408,23 @@ class chess():
 
             #########################################################################
 
-            #The opponent the player most played agaisnt
-            df_mostPlayed = dfChess[dfChess.opponent == dfChess.opponent.mode()[0]]
-            print('\n-----------------\n\nArch-enemy: %s\n' % (df_mostPlayed.opponent.iloc[0]))
+            if ArchEnemy == True:
+                #The opponent the player most played agaisnt
+                df_mostPlayed = dfChess[dfChess.opponent == dfChess.opponent.mode()[0]]
+                print('\n-----------------\n\nArch-enemy: %s\n' % (df_mostPlayed.opponent.iloc[0]))
 
-            #Some info to print
-            games_won, games_lost, games_drew, total_games = get_print_info(df_mostPlayed)
+                #Some info to print
+                games_won, games_lost, games_drew, total_games = get_print_info(df_mostPlayed)
 
-            percent_win = percent(games_won, total_games)
-            percent_draw = percent(games_drew, total_games)
-            percent_lost = percent(games_lost, total_games)
+                percent_win = percent(games_won, total_games)
+                percent_draw = percent(games_drew, total_games)
+                percent_lost = percent(games_lost, total_games)
 
-            print('%s won %s games out of %s against %s\n' % \
-                (player, games_won, total_games, df_mostPlayed.opponent.iloc[0]))
+                print('%s won %s games out of %s against %s\n' % \
+                    (player, games_won, total_games, df_mostPlayed.opponent.iloc[0]))
 
-            del df_mostPlayed
-            print('  Wins: %s%%\n  Draws: %s%%\n  Loses: %s%%\n' % (percent_win, percent_draw, percent_lost))
+                del df_mostPlayed
+                print('  Wins: %s%%\n  Draws: %s%%\n  Loses: %s%%\n' % (percent_win, percent_draw, percent_lost))
 
         except:
 
