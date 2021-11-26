@@ -384,21 +384,21 @@ class chess():
         #return(self.df)
 
     def stats(self, timeControl = 'All Time Controls', **kwargs):
-        ArchEnemy = kwargs.get('ArchEnemy', False)
-        afterDate = kwargs.get('after', False)
-        beforeDate = kwargs.get('before', False)
-        opponent = kwargs.get('opponent', False)
+        ArchEnemy = bool(kwargs.get('ArchEnemy', False)) #Define if it's gonna show the arch enemy
+        afterDate = kwargs.get('after', False) #define starting date to show on stats
+        beforeDate = kwargs.get('before', False) #Define last date to show on stats
+        opponent = kwargs.get('opponent', False) #Define an specific opponent
         #Get the dataframe from the specific time control
         dfChess = get_specific_df(self.df, timeControl)
 
-        if afterDate != False:
-            dfChess = dfChess[dfChess.date >= afterDate]
+        if afterDate != False: #If the user chose a date to start
+            dfChess = dfChess[dfChess.date >= str(afterDate)]
 
-        if beforeDate != False:
-            dfChess = dfChess[dfChess.date <= beforeDate]
+        if beforeDate != False: #If the user chose an ending date
+            dfChess = dfChess[dfChess.date <= str(beforeDate)]
 
-        if opponent != False:
-            dfChess = dfChess[dfChess.opponent == opponent]
+        if (opponent != False): #If the user chose an specific opponent
+            dfChess = dfChess[dfChess.opponent.str.lower() == str(opponent).lower()]
 
         try:
 
