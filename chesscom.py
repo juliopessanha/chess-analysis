@@ -38,7 +38,7 @@ def get_PGN(player):
             if not os.path.exists(folderpath+".txt"):
                 #check if the month file exists, if not it will create
                 urllib.request.urlretrieve(month_url+'/pgn', folderpath+".txt")
-                print("New folder found %s" % folderpath)
+                print("Creating new folder: %s" % folderpath)
                 skip_refiller = False #it's a completely new month, it won't redownload it
         
         if skip_refiller:
@@ -364,8 +364,18 @@ class chess():
                     df2 = pd.DataFrame(data=allGames, columns=dfColumns)
                     self.df = self.df.append(df2, ignore_index=True)
 
-            self.df['date'] = pd.to_datetime(self.df['date'], dayfirst=True)
-            self.df = self.df.sort_values(by='date')
+            ### TO SORT THE DATAFRAME BY DATETIME
+
+            #Create a array with date and time
+            new_datetime = self.df.date + " " + self.df.time
+
+            #Creates a column with "datetime" from the array above
+            self.df['datetime'] = pd.to_datetime(new_datetime, format='%d/%m/%Y %H:%M:%S')
+            self.df.sort_values(by='datetime', inplace=True) #Sort the dataframe by the datetime column
+            self.df.reset_index(drop=True, inplace=True) #Reset the index, since it was sorted
+            self.df.drop(columns=['datetime'], inplace=True) #Drop the new datetime dataframe
+            self.df['date'] = pd.to_datetime(self.df['date'], dayfirst=True) #Turns the date column into date format
+            #self.df = self.df.sort_values(by='date')
         else: #If the player does not exist, it stops
             print("There's no %s data on chess.com" % player)
 
@@ -377,7 +387,7 @@ class chess():
         ArchEnemy = kwargs.get('ArchEnemy', False)
         afterDate = kwargs.get('after', False)
         beforeDate = kwargs.get('before', False)
-
+        opponent = kwargs.get('opponent', False)
         #Get the dataframe from the specific time control
         dfChess = get_specific_df(self.df, timeControl)
 
@@ -386,6 +396,9 @@ class chess():
 
         if beforeDate != False:
             dfChess = dfChess[dfChess.date <= beforeDate]
+
+        if opponent != False:
+            dfChess = dfChess[dfChess.opponent == opponent]
 
         try:
 
