@@ -316,19 +316,19 @@ def get_specific_df(df_in, timeControl):
     if timeControl == 'All Time Controls':
         dfChess = df_in
 
-    elif timeControl.lower() == 'blitz':
+    elif timeControl.lower() == 'blitz': #Between 3 and 5 minutes
         dfChess = df_in[(df_in.timeControl == '300') | (df_in.timeControl.str.contains('300\+')) | 
         (df_in.timeControl == '180') | (df_in.timeControl.str.contains('180\+'))]
 
-    elif timeControl.lower() == 'rapid':
+    elif timeControl.lower() == 'rapid': #Between 10 and 30 minutes
         dfChess = df_in[(df_in.timeControl == '600') | (df_in.timeControl.str.contains('600\+')) | 
         (df_in.timeControl == '900') | (df_in.timeControl.str.contains('900\+')) |
         (df_in.timeControl == '1800') | (df_in.timeControl.str.contains('1800\+'))]
 
-    elif timeControl.lower() == 'bullet':
+    elif timeControl.lower() == 'bullet': #Under 3 minutes
             dfChess = df_in[(df_in.timeControl == '60') | (df_in.timeControl.str.contains('60\+'))]
 
-    else:
+    else: #No time control found
         print("There's no %s time control" % (timeControl))
         return(None)
 
@@ -365,7 +365,6 @@ class chess():
                     self.df = self.df.append(df2, ignore_index=True)
 
             ### TO SORT THE DATAFRAME BY DATETIME
-
             #Create a array with date and time
             new_datetime = self.df.date + " " + self.df.time
 
@@ -425,13 +424,19 @@ class chess():
             #########################################################################
             print('\nMost played opening as')
 
-            df_whiteGames = get_color_opening(dfChess, 'White')
-            color_analysis_print(df_whiteGames)
-            del df_whiteGames
+            try:
+                df_whiteGames = get_color_opening(dfChess, 'White')
+                color_analysis_print(df_whiteGames)
+                del df_whiteGames
+            except:
+                print("    White: No games found")
 
-            df_blackGames = get_color_opening(dfChess, 'Black')
-            color_analysis_print(df_blackGames)
-            del df_blackGames
+            try:    
+                df_blackGames = get_color_opening(dfChess, 'Black')
+                color_analysis_print(df_blackGames)
+                del df_blackGames
+            except:
+                print("    Black: No game found")
 
             #########################################################################
 
