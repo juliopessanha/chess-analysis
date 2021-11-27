@@ -7,6 +7,7 @@ import os
 import urllib.request
 import pandas as pd
 import re
+#import cx_Oracle
 from datetime import datetime, timedelta
 
 folder_path = os.path.abspath("./")
@@ -14,7 +15,14 @@ PGNfolder = folder_path + "/PGN"
 
 #print(PGNfolder)
 
-def get_PGN(player):
+def get_PGN(player, pgn = False):
+    
+    if pgn == False:
+        pgn = ''
+        
+    elif pgn != False:
+        pgn = '/pgn'
+    
     #Gets the pgn files from the chesscom api and saves it locally by month file
     pgn_archives = requests.get('https://api.chess.com/pub/player/'+player.lower()+'/games/archives')
     #garantees that the player will always be lowercase, in case the user writes it differently
@@ -37,13 +45,13 @@ def get_PGN(player):
             
             if not os.path.exists(folderpath+".txt"):
                 #check if the month file exists, if not it will create
-                urllib.request.urlretrieve(month_url+'/pgn', folderpath+".txt")
-                print("Creating new folder: %s" % folderpath)
+                urllib.request.urlretrieve(month_url + pgn, folderpath+".txt")
+                print("New folder found %s" % folderpath)
                 skip_refiller = False #it's a completely new month, it won't redownload it
         
         if skip_refiller:
             os.remove(folderpath + ".txt")
-            urllib.request.urlretrieve(month_url+'/pgn', folderpath+".txt")
+            urllib.request.urlretrieve(month_url + pgn, folderpath+".txt")
             print("Refilling folder %s" % folderpath)
         
         print("%s data solved." % player)
@@ -52,20 +60,33 @@ def get_PGN(player):
         print("player not found")
         return(False)
     
-def extract_data(filepath):
+def extract_data(filepath, pgn = True):
     #Loads the PGN files from the local folders
     #print("Reading PGN")
     with open(filepath) as f:
         #print(f.readlines())
-        return f.readlines()
-    
+        if pgn == True:
+            return(f.readlines())
+        else:
+            data = []
+            global data1
+            data1 = f.readlines()
+            for i in range(len(json.loads(data1[0])['games'])):
+                try:
+                    data.append(json.loads(data1[0])['games'][i]['pgn'].split('\n'))
+                    data[i][-1] = json.loads(data1[0])['games'][i]['time_class'] #=data[i][:-1]
+                
+                except:
+                    pass
+            return(data)
+
 def data_delimiter(data):
     #Returns two lists: One with the beginnings and another with the endings of each game in a data list
     start = []
     end = []
     
     for i,j in enumerate(data):
-
+        
         if j.startswith("[Event"):
             start.append(i)
             if i != 0:
@@ -149,14 +170,28 @@ def pieceMoveCounter(moves, playerColor, timeControl_is, id_):
                 else:
                     pieceMoves[id_]["p"] += 1
 
-def transform_data(data, start, end, player):
-
+def transform_data(data, player, start = False, end = False):
+    #print(data)
+    
     pattern = "\"(.*?)\"" #pattern for regular expression delimiting data between ""
     allGames = []
-    for i in range(0, len(start)):
+    if start == False: #if .txt has more than the pgn itself
+        counter = data
+        pgn_list_spot = -2
+    else: #if the .txt has only the pgn
+        counter = start
+        pgn_list_spot = -1
+        
+    for i in range(0, len(counter)):
         
         inGame = []
-        game = data[start[i]:end[i]] #game delimitation  
+        #game = data[start[i]].split('\n')
+        if start == False: #if .txt has more than the pgn itself
+            game = data[i] #game delimitation  
+
+        else: #if the .txt has only the pgn
+            game = data[start[i]:end[i]] #game delimitation  
+
         if game[10].startswith("[ECOUrl"):
             whitePlayer = re.search(pattern, game[4]).group(1)
             if whitePlayer == player: #se o player estiver de brancas
@@ -193,6 +228,7 @@ def transform_data(data, start, end, player):
                 inGame.append(re.search(pattern, game[13]).group(1)) #Opponent ELO
 
             inGame.append(re.search(pattern, game[15]).group(1)) #Defines time control
+            #print(game)
             dateObject = datetime.strptime(re.search(pattern, game[2]).group(1), "%Y.%m.%d") #Defines date in UTC
             time_utc = re.search(pattern, game[12]).group(1) #get the time in UTC
 
@@ -249,9 +285,9 @@ def transform_data(data, start, end, player):
             
             #print(substring)
             inGame.append(substring)
-                
-            gamePGN = PGNExtract(game[-1])
-                
+
+            gamePGN = PGNExtract(game[pgn_list_spot])
+
             inGame.append(gamePGN) #pgn transformed into a string
             
             try: #the id from the game link is the id in the database
@@ -262,16 +298,21 @@ def transform_data(data, start, end, player):
                 inGame.append(re.search(pattern2, game[20]).group(1)) #same
             
             
+            if start == False:
+                inGame.append(game[-1])
+                
+            else:
+                inGame.append("-")
+                    
             #Here it goes to the function to count how many times I moved each piece
             #pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-1])
 
             #print("---")
             #print(inGame)
             allGames.append(inGame)
-
             
     return(allGames)
-    
+     
 #######################################################################  
 #Get some information to print later by a given dataframe
 def get_print_info(dataFrame):
@@ -312,27 +353,34 @@ def color_analysis_print(df_color):
     print("    %s: %s, with %s%% winrate" % (color, df_color.opening.mode()[0], percent_win))
     
 #Get the dataframe with the specified time control
-def get_specific_df(df_in, timeControl):
-    if timeControl == 'All Time Controls':
-        dfChess = df_in
+def get_specific_df(df_in, timeControl, pgn):
 
-    elif timeControl.lower() == 'blitz': #Between 3 and 5 minutes
-        dfChess = df_in[(df_in.timeControl == '300') | (df_in.timeControl.str.contains('300\+')) | 
-        (df_in.timeControl == '180') | (df_in.timeControl.str.contains('180\+'))]
+    if pgn == True:
 
-    elif timeControl.lower() == 'rapid': #Between 10 and 30 minutes
-        dfChess = df_in[(df_in.timeControl == '600') | (df_in.timeControl.str.contains('600\+')) | 
-        (df_in.timeControl == '900') | (df_in.timeControl.str.contains('900\+')) |
-        (df_in.timeControl == '1800') | (df_in.timeControl.str.contains('1800\+'))]
+        if timeControl == 'All Time Controls':
+            dfChess = df_in
 
-    elif timeControl.lower() == 'bullet': #Under 3 minutes
-            dfChess = df_in[(df_in.timeControl == '60') | (df_in.timeControl.str.contains('60\+'))]
+        elif timeControl.lower() == 'blitz': #Between 3 and 5 minutes
+            dfChess = df_in[(df_in.timeControl == '300') | (df_in.timeControl.str.contains('300\+')) | 
+            (df_in.timeControl == '180') | (df_in.timeControl.str.contains('180\+'))]
 
-    else: #No time control found
-        print("There's no %s time control" % (timeControl))
-        return(None)
+        elif timeControl.lower() == 'rapid': #Between 10 and 30 minutes
+            dfChess = df_in[(df_in.timeControl == '600') | (df_in.timeControl.str.contains('600\+')) | 
+            (df_in.timeControl == '900') | (df_in.timeControl.str.contains('900\+')) |
+            (df_in.timeControl == '1800') | (df_in.timeControl.str.contains('1800\+'))]
 
-    return(dfChess)        
+        elif timeControl.lower() == 'bullet': #Under 3 minutes
+                dfChess = df_in[(df_in.timeControl == '60') | (df_in.timeControl.str.contains('60\+'))]
+
+        else: #No time control found
+            print("There's no %s time control" % (timeControl))
+            return(None)
+
+        return(dfChess)        
+        
+    else:
+        dfChess = df_in[df_in.timeClass == timeControl.lower()]
+        return(dfChess)
         
 class chess():
     
@@ -341,29 +389,37 @@ class chess():
         self.soup = ''
         #self.df = pd.DataFrame(columns=dfColumns)
 
-    def extract(self, player):
-        #global pieceMoves
-        #pieceMoves = {}
-        playerExists = get_PGN(player) #tries to download player PGN data
+    def extract(self, player, pgn = False):
+        self.pgn = pgn
+        dfColumns = ["player", "playerColor", "opponent", "result", "winningReason", "playerElo", "oponentElo", "timeControl", 'date', 'time', 'opening', 'pgn', 'id', 'timeClass']
+        global pieceMoves
+        pieceMoves = {}
+        playerExists = get_PGN(player, pgn = pgn) #tries to download player PGN data
         if playerExists: #If the player exists, then:        
 
-            #pieceMoves_df = pd.DataFrame(columns=pieceMovesColumns)
-            dfColumns = ["player", "playerColor", "opponent", "result", "winningReason", "playerElo", "oponentElo", "timeControl", 'date', 'time', 'opening', 'pgn', 'id']
             self.df = pd.DataFrame(columns=dfColumns)
+            #pieceMoves_df = pd.DataFrame(columns=pieceMovesColumns)
             with os.scandir(PGNfolder + "/" + player.lower()) as folders: #goes through all the player month files
                 print("Creating dataframe")
                 for file in folders:
                     #print(file)
-                    data = extract_data(file) #load each month file into the memory
-                    start, end = data_delimiter(data) #defines the limits of each data part
 
+                    data = extract_data(file, pgn = pgn) #load each month file into the memory
+
+                    if pgn == True:
+                        start, end = data_delimiter(data) #defines the limits of each data part
+                        allGames = transform_data(data, player, start, end)
                     #print(data[start[k]:end[k]])
-
-                    allGames = transform_data(data, start, end, player)
+                    else:
+                        allGames = transform_data(data, player)#, start, end)
                     
+                    #break
                     df2 = pd.DataFrame(data=allGames, columns=dfColumns)
                     self.df = self.df.append(df2, ignore_index=True)
-
+                    
+                    if pgn == True:
+                        self.df.drop(columns=['timeClass'], inplace=True)
+                    
             ### TO SORT THE DATAFRAME BY DATETIME
             #Create a array with date and time
             new_datetime = self.df.date + " " + self.df.time
@@ -388,7 +444,7 @@ class chess():
         beforeDate = kwargs.get('before', False) #Define last date to show on stats
         opponent = kwargs.get('opponent', False) #Define an specific opponent
         #Get the dataframe from the specific time control
-        dfChess = get_specific_df(self.df, timeControl)
+        dfChess = get_specific_df(self.df, timeControl, self.pgn)
 
         if afterDate != False: #If the user chose a date to start
             dfChess = dfChess[dfChess.date >= str(afterDate)]
@@ -459,9 +515,7 @@ class chess():
                 print('  Wins: %s%%\n  Draws: %s%%\n  Loses: %s%%\n' % (percent_win, percent_draw, percent_lost))
 
         except:
-
             print("No games found")
 
 if __name__ == "__main__":
     print("-")
-    #main("GMKrikor")
