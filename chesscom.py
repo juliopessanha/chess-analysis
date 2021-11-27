@@ -171,16 +171,15 @@ def pieceMoveCounter(moves, playerColor, timeControl_is, id_):
                     pieceMoves[id_]["p"] += 1
 
 def transform_data(data, player, start = False, end = False):
-    #print(data)
-    
+
     pattern = "\"(.*?)\"" #pattern for regular expression delimiting data between ""
-    allGames = []
+    allGames = [] #list that will contain all the games
     if start == False: #if .txt has more than the pgn itself
         counter = data
-        pgn_list_spot = -2
+        pgn_list_spot = -2 #the list has the 'timeClass', so the PGN isn't at the very end
     else: #if the .txt has only the pgn
         counter = start
-        pgn_list_spot = -1
+        pgn_list_spot = -1 #the list will not have the 'timeClass', so the PGN is at the end
         
     for i in range(0, len(counter)):
         
@@ -298,11 +297,11 @@ def transform_data(data, player, start = False, end = False):
                 inGame.append(re.search(pattern2, game[20]).group(1)) #same
             
             
-            if start == False:
-                inGame.append(game[-1])
-                
-            else:
-                inGame.append("-")
+            if start == False: #If the .txt files under /PGN has all the data, not only the pgn
+                inGame.append(game[-1]) #it adds the timeClass
+                 
+            else: #If the .txt files under /PGN DO NOT have all the data: ONLY the pgn
+                inGame.append("-") #it adds a bit of nothing
                     
             #Here it goes to the function to count how many times I moved each piece
             #pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-2])
@@ -355,7 +354,7 @@ def color_analysis_print(df_color):
 #Get the dataframe with the specified time control
 def get_specific_df(df_in, timeControl, pgn):
 
-    if pgn == True:
+    if pgn == True: #If the .txt files under /PGN contains only the pgn
 
         if timeControl == 'All Time Controls':
             return(df_in)
@@ -375,10 +374,9 @@ def get_specific_df(df_in, timeControl, pgn):
         else: #No time control found
             print("There's no %s time control" % (timeControl))
             return(None)
-
         return(dfChess)        
         
-    else:
+    else: #If the .txt files under /PGN contain more than only the PGN
         if timeControl == 'All Time Controls':
             return(df_in)
         else:
@@ -426,7 +424,8 @@ class chess():
                     df2 = pd.DataFrame(data=allGames, columns=dfColumns)
                     self.df = self.df.append(df2, ignore_index=True)
                     
-                    if pgn == True:
+                    if pgn == True: #If the .txt files under /PGN has only the pgn from the site
+                                    #the 'timeClass' column is dropped because it's empty
                         self.df.drop(columns=['timeClass'], inplace=True)
                     
             ### TO SORT THE DATAFRAME BY DATETIME
@@ -440,6 +439,7 @@ class chess():
             self.df.drop(columns=['datetime'], inplace=True) #Drop the new datetime dataframe
             self.df['date'] = pd.to_datetime(self.df['date'], dayfirst=True) #Turns the date column into date format
             #self.df = self.df.sort_values(by='date')
+
         else: #If the player does not exist, it stops
             print("There's no %s data on chess.com" % player)
 
