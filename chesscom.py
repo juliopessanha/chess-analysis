@@ -305,7 +305,7 @@ def transform_data(data, player, start = False, end = False):
                 inGame.append("-")
                     
             #Here it goes to the function to count how many times I moved each piece
-            #pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-1])
+            #pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-2])
 
             #print("---")
             #print(inGame)
@@ -358,7 +358,7 @@ def get_specific_df(df_in, timeControl, pgn):
     if pgn == True:
 
         if timeControl == 'All Time Controls':
-            dfChess = df_in
+            return(df_in)
 
         elif timeControl.lower() == 'blitz': #Between 3 and 5 minutes
             dfChess = df_in[(df_in.timeControl == '300') | (df_in.timeControl.str.contains('300\+')) | 
@@ -379,9 +379,12 @@ def get_specific_df(df_in, timeControl, pgn):
         return(dfChess)        
         
     else:
-        dfChess = df_in[df_in.timeClass == timeControl.lower()]
-        return(dfChess)
-        
+        if timeControl == 'All Time Controls':
+            return(df_in)
+        else:
+            dfChess = df_in[df_in.timeClass == timeControl.lower()]
+            return(dfChess)
+
 class chess():
     
     def __init__(self):
@@ -390,6 +393,12 @@ class chess():
         #self.df = pd.DataFrame(columns=dfColumns)
 
     def extract(self, player, pgn = False):
+
+        #The pgn function defines if the code will download ONLY the PGN or everything about each game
+        #pgn = False. Everything will be download. The .txt will look uglier, but the dataframe will contain
+        #      the "timeClass" column
+        #pgn = True. Will work as before. The .txt will look pretty, but the dataframe won't contain the 'timeClass' column
+
         self.pgn = pgn
         dfColumns = ["player", "playerColor", "opponent", "result", "winningReason", "playerElo", "oponentElo", "timeControl", 'date', 'time', 'opening', 'pgn', 'id', 'timeClass']
         global pieceMoves
@@ -435,8 +444,7 @@ class chess():
             print("There's no %s data on chess.com" % player)
 
         print("Done")  
-        
-        #return(self.df)
+
 
     def stats(self, timeControl = 'All Time Controls', **kwargs):
         ArchEnemy = bool(kwargs.get('ArchEnemy', False)) #Define if it's gonna show the arch enemy
