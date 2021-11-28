@@ -170,10 +170,72 @@ def pieceMoveCounter(moves, playerColor, timeControl_is, id_):
                 else:
                     pieceMoves[id_]["p"] += 1
 
+
+###################################################
+###### TRANSFORM DATA RELATED FUNCTIONS ###########
+###################################################
+
+#Function to replace values in a substring
+def replace_all(substring, itens_to_replace):
+    for item in itens_to_replace:
+        substring = substring.replace(item, "")
+
+    return(substring)
+
+def get_opening_name(full_opening_name):
+
+    pattern2 = "\"https://www.chess.com/openings/(.*?)\"" #gets the link our of the equation
+    opening_name = re.search(pattern2, full_opening_name).group(1) #same
+    
+    pattern2 = "(.*?)\."
+    #substring2 = re.search(pattern, substring).group(1)
+    try: #this will try to remove the ...nf3 stuff
+        opening_name = re.search(pattern2, opening_name).group(1)
+
+    except: #if there's no stuff like this, continues normally
+        pass
+    
+    itens_to_replace = ['-1', '-2', '-3', '-4', '-5', '-6']
+    opening_name = replace_all(opening_name, itens_to_replace)
+
+    if "Opening" in opening_name:
+        pattern2 = "(.*?)-Opening" #gets the link our of the equation
+        opening_name = re.search(pattern2, opening_name).group(1) + "-Opening"#same
+        
+    if "Defense" in opening_name:
+        pattern2 = "(.*?)-Defense" #gets the link our of the equation
+        opening_name = re.search(pattern2, opening_name).group(1) + "-Defense"#same
+        
+    if "Game" in opening_name:
+        pattern2 = "(.*?)-Game" #gets the link our of the equation
+        opening_name = re.search(pattern2, opening_name).group(1) + "-Game"#same
+    
+    if "Attack" in opening_name:
+        pattern2 = "(.*?)-Attack" #gets the link our of the equation
+        opening_name = re.search(pattern2, opening_name).group(1) + "-Attack"#same
+
+    return(opening_name)
+    
+#Converting UTC time to UTC-3
+def utc_time_converter(game, pattern):
+    dateObject = datetime.strptime(re.search(pattern, game[2]).group(1), "%Y.%m.%d") #Defines date in UTC
+    time_utc = re.search(pattern, game[12]).group(1) #get the time in UTC
+
+    #Here converts time UTC to UTC-3, since I'm brazilian
+    utc_dt = dateObject.strftime("%d/%m/%Y") + " " + time_utc
+    utc_dt = datetime.strptime(utc_dt, "%d/%m/%Y %H:%M:%S")
+    utc_br = utc_dt - timedelta(hours=3)
+
+    date_utc_br = utc_br.strftime("%d/%m/%Y")
+
+    time_utc_br = utc_br.strftime("%H:%M:%S")
+    return(date_utc_br, time_utc_br)
+
 def transform_data(data, player, start = False, end = False):
 
     pattern = "\"(.*?)\"" #pattern for regular expression delimiting data between ""
     allGames = [] #list that will contain all the games
+
     if start == False: #if .txt has more than the pgn itself
         counter = data
         pgn_list_spot = -2 #the list has the 'timeClass', so the PGN isn't at the very end
@@ -227,65 +289,18 @@ def transform_data(data, player, start = False, end = False):
                 inGame.append(re.search(pattern, game[13]).group(1)) #Opponent ELO
 
             inGame.append(re.search(pattern, game[15]).group(1)) #Defines time control
-            #print(game)
-            dateObject = datetime.strptime(re.search(pattern, game[2]).group(1), "%Y.%m.%d") #Defines date in UTC
-            time_utc = re.search(pattern, game[12]).group(1) #get the time in UTC
-
-            #Here converts time UTC to UTC-3, since I'm brazilian
-            utc_dt = dateObject.strftime("%d/%m/%Y") + " " + time_utc
-            utc_dt = datetime.strptime(utc_dt, "%d/%m/%Y %H:%M:%S")
-            utc_br = utc_dt - timedelta(hours=3)
-
-            inGame.append(utc_br.strftime("%d/%m/%Y")) #Set date as dd/mm/YYYY
-
-            inGame.append(utc_br.strftime("%H:%M:%S")) #insert time into the list
-
-            pattern2 = "\"https://www.chess.com/openings/(.*?)\"" #gets the link our of the equation
-            substring = re.search(pattern2, game[10]).group(1) #same
             
-            pattern2 = "(.*?)\."
-            #substring2 = re.search(pattern, substring).group(1)
-            try: #this will try to remove the ...nf3 stuff
-                substring = re.search(pattern2, substring).group(1)
-                substring = substring.replace("-1", "")
-                substring = substring.replace("-2", "")
-                substring = substring.replace("-3", "")
-                substring = substring.replace("-4", "")
-                substring = substring.replace("-5", "")
-                substring = substring.replace("-6", "")
-            except: #if there's no stuff like this, continues normally
-                substring = substring.replace("-1", "")
-                substring = substring.replace("-2", "")
-                substring = substring.replace("-3", "")
-                substring = substring.replace("-4", "")
-                substring = substring.replace("-5", "")
-                substring = substring.replace("-6", "")
-                
-                        
-            if "Opening" in substring:
-                pattern2 = "(.*?)-Opening" #gets the link our of the equation
-                substring = re.search(pattern2, substring).group(1) + "-Opening"#same
-                #print(substring)
-                
-            if "Defense" in substring:
-                pattern2 = "(.*?)-Defense" #gets the link our of the equation
-                substring = re.search(pattern2, substring).group(1) + "-Defense"#same
-                #print(substring)
-                
-            if "Game" in substring:
-                pattern2 = "(.*?)-Game" #gets the link our of the equation
-                substring = re.search(pattern2, substring).group(1) + "-Game"#same
-                #print(substring)
-            
-            if "Attack" in substring:
-                pattern2 = "(.*?)-Attack" #gets the link our of the equation
-                substring = re.search(pattern2, substring).group(1) + "-Attack"#same
-                #print(substring)
-            
-            #print(substring)
-            inGame.append(substring)
+            date_utc_br, time_utc_br = utc_time_converter(game, pattern) #Converting UTC time to UTC-3
 
-            gamePGN = PGNExtract(game[pgn_list_spot])
+            inGame.append(date_utc_br) #Set date as dd/mm/YYYY
+
+            inGame.append(time_utc_br) #insert time into the list
+
+            opening_name = get_opening_name(game[10]) #reduces opening_name granularity
+
+            inGame.append(opening_name)
+
+            gamePGN = PGNExtract(game[pgn_list_spot]) #gets the PGN
 
             inGame.append(gamePGN) #pgn transformed into a string
             
@@ -295,7 +310,7 @@ def transform_data(data, player, start = False, end = False):
             except:
                 pattern2 = "\"https://www.chess.com/game/daily/(.*?)\"" #gets the link our of the equation
                 inGame.append(re.search(pattern2, game[20]).group(1)) #same
-            
+
             
             if start == False: #If the .txt files under /PGN has all the data, not only the pgn
                 inGame.append(game[-1]) #it adds the timeClass
@@ -306,8 +321,6 @@ def transform_data(data, player, start = False, end = False):
             #Here it goes to the function to count how many times I moved each piece
             #pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-2])
 
-            #print("---")
-            #print(inGame)
             allGames.append(inGame)
             
     return(allGames)
