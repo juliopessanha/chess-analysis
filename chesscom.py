@@ -113,7 +113,7 @@ def PGNExtract(data):
             
     return(game)
 
-def pieceMoveCounter(moves, playerColor, timeControl_is, id_):
+def pieceMoveCounter(moves, playerColor, timeControl_is, id_, pieceMoves):
     #This function counts how many time I moved each piece
     s = moves.split(" ")
     
@@ -170,6 +170,7 @@ def pieceMoveCounter(moves, playerColor, timeControl_is, id_):
                 else:
                     pieceMoves[id_]["p"] += 1
 
+    return(pieceMoves)
 
 ###################################################
 ###### TRANSFORM DATA RELATED FUNCTIONS ###########
@@ -231,7 +232,24 @@ def utc_time_converter(game, pattern):
     time_utc_br = utc_br.strftime("%H:%M:%S")
     return(date_utc_br, time_utc_br)
 
-def transform_data(data, player, start = False, end = False):
+#Get the game result and winning reason
+def get_result(game, player, pattern):
+    winner = re.search(pattern, game[16]).group(1) #get winner and winning reason
+    winner = winner.split(" ")
+
+    if winner[0] == player:
+        game_result = 'Winner' #indicates that the player won
+
+    elif winner[0] == 'Game':
+        game_result = 'Draw' #indicates that the player drew
+
+    else:
+        game_result = 'Loser' #indicates that the player lost
+
+    return(game_result, winner[-1])
+
+
+def transform_data(data, player, start = False, end = False, pieceMoves = False):
 
     pattern = "\"(.*?)\"" #pattern for regular expression delimiting data between ""
     allGames = [] #list that will contain all the games
@@ -245,7 +263,7 @@ def transform_data(data, player, start = False, end = False):
         
     for i in range(0, len(counter)):
         
-        inGame = []
+        inGame = [] #The list to gather game data
         #game = data[start[i]].split('\n')
         if start == False: #if .txt has more than the pgn itself
             game = data[i] #game delimitation  
@@ -260,33 +278,25 @@ def transform_data(data, player, start = False, end = False):
                 inGame.append("White") #append player color
                 inGame.append(re.search(pattern, game[5]).group(1)) #append black player
 
+                player_elo = re.search(pattern, game[13]).group(1) #Player ELO
+                opponent_elo = re.search(pattern, game[14]).group(1) #opponent ELO
+
             else:
                 inGame.append(re.search(pattern, game[5]).group(1)) #append black player
                 inGame.append("Black") #append player color
                 inGame.append(whitePlayer) #append opponent
 
-            winner = re.search(pattern, game[16]).group(1) #get winner and winning reason
-            winner = winner.split(" ")
+                player_elo = re.search(pattern, game[14]).group(1) #player ELO
+                opponent_elo = re.search(pattern, game[13]).group(1) #opponent ELO
 
-            if winner[0] == player:
-                inGame.append('Winner') #indicates that the player won
-                inGame.append(winner[-1]) #winning reason
+            #Get the game result and winning reason 
+            game_result, winning_reason = get_result(game, player, pattern)
 
-            elif winner[0] == 'Game':
-                inGame.append('Draw') #indicates that the player drew
-                inGame.append(winner[-1]) #winning reason
+            inGame.append(game_result) #indicates that the player lost
+            inGame.append(winning_reason) #winning reason
 
-            else:
-                inGame.append('Loser') #indicates that the player lost
-                inGame.append(winner[-1]) #winning reason
-
-            if whitePlayer == player: #se o player estiver de brancas
-                inGame.append(re.search(pattern, game[13]).group(1)) #player ELO
-                inGame.append(re.search(pattern, game[14]).group(1)) #opponent ELO
-
-            else: #Se o jogador estiver de pretas
-                inGame.append(re.search(pattern, game[14]).group(1)) #Player ELO
-                inGame.append(re.search(pattern, game[13]).group(1)) #Opponent ELO
+            inGame.append(player_elo) #player ELO
+            inGame.append(opponent_elo) #opponent ELO
 
             inGame.append(re.search(pattern, game[15]).group(1)) #Defines time control
             
@@ -298,7 +308,7 @@ def transform_data(data, player, start = False, end = False):
 
             opening_name = get_opening_name(game[10]) #reduces opening_name granularity
 
-            inGame.append(opening_name)
+            inGame.append(opening_name) #Append the opening name
 
             gamePGN = PGNExtract(game[pgn_list_spot]) #gets the PGN
 
@@ -311,7 +321,6 @@ def transform_data(data, player, start = False, end = False):
                 pattern2 = "\"https://www.chess.com/game/daily/(.*?)\"" #gets the link our of the equation
                 inGame.append(re.search(pattern2, game[20]).group(1)) #same
 
-            
             if start == False: #If the .txt files under /PGN has all the data, not only the pgn
                 inGame.append(game[-1]) #it adds the timeClass
                  
@@ -319,11 +328,12 @@ def transform_data(data, player, start = False, end = False):
                 inGame.append("-") #it adds a bit of nothing
                     
             #Here it goes to the function to count how many times I moved each piece
-            #pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-2])
+            if pieceMoves != False:
+                pieceMoves = pieceMoveCounter(gamePGN, inGame[1], inGame[-6], inGame[-2], pieceMoves)
 
             allGames.append(inGame)
             
-    return(allGames)
+    return(allGames, pieceMoves)
      
 #######################################################################  
 #Get some information to print later by a given dataframe
@@ -412,7 +422,7 @@ class chess():
 
         self.pgn = pgn
         dfColumns = ["player", "playerColor", "opponent", "result", "winningReason", "playerElo", "oponentElo", "timeControl", 'date', 'time', 'opening', 'pgn', 'id', 'timeClass']
-        global pieceMoves
+        #global pieceMoves
         pieceMoves = {}
         playerExists = get_PGN(player, pgn = pgn) #tries to download player PGN data
         if playerExists: #If the player exists, then:        
@@ -428,10 +438,10 @@ class chess():
 
                     if pgn == True:
                         start, end = data_delimiter(data) #defines the limits of each data part
-                        allGames = transform_data(data, player, start, end)
-                    #print(data[start[k]:end[k]])
+                        allGames, pieceMoves = transform_data(data, player, start, end, pieceMoves = pieceMoves)
+
                     else:
-                        allGames = transform_data(data, player)#, start, end)
+                        allGames, pieceMoves = transform_data(data, player, pieceMoves = pieceMoves)#, start, end)
                     
                     #break
                     df2 = pd.DataFrame(data=allGames, columns=dfColumns)
@@ -455,6 +465,8 @@ class chess():
 
         else: #If the player does not exist, it stops
             print("There's no %s data on chess.com" % player)
+
+        self.pieceMoves = pieceMoves
 
         print("Done")  
 
