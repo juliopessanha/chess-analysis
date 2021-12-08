@@ -6,6 +6,8 @@ import json
 import os
 import urllib.request
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter
 import re
 #import cx_Oracle
 from datetime import datetime, timedelta
@@ -69,12 +71,13 @@ def extract_data(filepath, pgn = True):
             return(f.readlines())
         else:
             data = []
-            global data1
             data1 = f.readlines()
-            for i in range(len(json.loads(data1[0])['games'])):
+
+            json_data = json.loads(data1[0])['games']
+            for i in range(len(json_data)):
                 try:
-                    data.append(json.loads(data1[0])['games'][i]['pgn'].split('\n'))
-                    data[i][-1] = json.loads(data1[0])['games'][i]['time_class'] #=data[i][:-1]
+                    data.append(json_data[i]['pgn'].split('\n'))
+                    data[i][-1] = json_data[i]['time_class'] #=data[i][:-1]
                 
                 except:
                     pass
@@ -262,7 +265,7 @@ def transform_data(data, player, start = False, end = False, pieceMoves = False)
         pgn_list_spot = -1 #the list will not have the 'timeClass', so the PGN is at the end
         
     for i in range(0, len(counter)):
-        
+
         inGame = [] #The list to gather game data
         #game = data[start[i]].split('\n')
         if start == False: #if .txt has more than the pgn itself
@@ -355,10 +358,10 @@ def get_print_info(dataFrame):
 def percent(numerator, denominator):
     return(round(((numerator / denominator)*100), 2))
 
-#returns a dataframe with only rows where the player used a specific color and the most played opening
+#returns a dataframe with only rows where the player used a specific color
 def get_color_opening(df_in, color):
     df_Games = df_in[df_in.playerColor == color] #Gets the chosen color
-    df_Games = df_Games[df_Games.opening == df_Games.opening.mode()[0]] #Returns the most played opening in that color
+    #df_Games = df_Games[df_Games.opening == df_Games.opening.mode()[0]] #Returns the most played opening in that color
     return(df_Games)
 
 #Print some data from a given dataframe
@@ -413,6 +416,41 @@ class chess():
         self.soup = ''
         #self.df = pd.DataFrame(columns=dfColumns)
 
+    def plot(self, timeControl = 'All Time Controls', **kwargs):
+
+        if timeControl == 'All Time Controls':
+            print("Please, specify a time control")
+            return
+
+        afterDate = kwargs.get('after', False) #define starting date to show on stats
+        beforeDate = kwargs.get('before', False) #Define last date to show on stats
+
+        dfChess = get_specific_df(self.df, timeControl, self.pgn)
+
+        if afterDate != False: #If the user chose a date to start
+            dfChess = dfChess[dfChess.date >= str(afterDate)]
+
+        if beforeDate != False: #If the user chose an ending date
+            dfChess = dfChess[dfChess.date <= str(beforeDate)]
+
+        plotChess = dfChess[['playerElo', 'date']].groupby(pd.Grouper(key='date', axis=0, freq='d')).max().dropna().reset_index()
+
+        plt.rc('font', size=12)
+        fig, ax = plt.subplots(figsize=(15, 9))
+
+        # Specify how our lines should look
+        ax.plot(plotChess.date, plotChess.playerElo, color='tab:blue', label='teste')
+
+        ax.set_title("Campos dos Goytacazes", fontsize=20)
+        ax.set_xlabel("Date", fontsize=20)
+        ax.set_ylabel("ELO", fontsize=20)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=19)
+        plt.margins(x=0.01)
+        ax.yaxis.grid(color='lightgray')
+
+        ax.xaxis.set_major_formatter(DateFormatter('%b\n%Y'))
+
     def extract(self, player, pgn = False):
 
         #The pgn function defines if the code will download ONLY the PGN or everything about each game
@@ -421,7 +459,7 @@ class chess():
         #pgn = True. Will work as before. The .txt will look pretty, but the dataframe won't contain the 'timeClass' column
 
         self.pgn = pgn
-        dfColumns = ["player", "playerColor", "opponent", "result", "winningReason", "playerElo", "oponentElo", "timeControl", 'date', 'time', 'opening', 'pgn', 'id', 'timeClass']
+        dfColumns = ["player", "playerColor", "opponent", "result", "winningReason", "playerElo", "opponentElo", "timeControl", 'date', 'time', 'opening', 'pgn', 'id', 'timeClass']
         #global pieceMoves
         pieceMoves = {}
         playerExists = get_PGN(player, pgn = pgn) #tries to download player PGN data
@@ -433,7 +471,6 @@ class chess():
                 print("Creating dataframe")
                 for file in folders:
                     #print(file)
-
                     data = extract_data(file, pgn = pgn) #load each month file into the memory
 
                     if pgn == True:
@@ -444,12 +481,13 @@ class chess():
                         allGames, pieceMoves = transform_data(data, player, pieceMoves = pieceMoves)#, start, end)
                     
                     #break
+
                     df2 = pd.DataFrame(data=allGames, columns=dfColumns)
                     self.df = self.df.append(df2, ignore_index=True)
-                    
-                    if pgn == True: #If the .txt files under /PGN has only the pgn from the site
-                                    #the 'timeClass' column is dropped because it's empty
-                        self.df.drop(columns=['timeClass'], inplace=True)
+
+                if pgn == True: #If the .txt files under /PGN has only the pgn from the site
+                                #the 'timeClass' column is dropped because it's empty
+                    self.df.drop(columns=['timeClass'], inplace=True)
                     
             ### TO SORT THE DATAFRAME BY DATETIME
             #Create a array with date and time
@@ -463,11 +501,15 @@ class chess():
             self.df['date'] = pd.to_datetime(self.df['date'], dayfirst=True) #Turns the date column into date format
             #self.df = self.df.sort_values(by='date')
 
+            self.df['playerElo'] = pd.to_numeric(self.df['playerElo'], downcast = 'integer')
+            self.df['opponentElo'] = pd.to_numeric(self.df['opponentElo'], downcast = 'integer')
+            self.player = self.df.player.iloc[0]
+            self.df.drop(columns=['player'], inplace=True)
+
         else: #If the player does not exist, it stops
             print("There's no %s data on chess.com" % player)
 
         self.pieceMoves = pieceMoves
-
         print("Done")  
 
 
@@ -497,31 +539,31 @@ class chess():
             percent_lost = percent(games_lost, total_games)
 
             print("--------------------------------------------------")
-            player = self.df.player.iloc[0]
-            print("   Chess analysis for %s  - %s" % (player, timeControl.title()))
+            #player = self.df.player.iloc[0]
+            print("   Chess analysis for %s  - %s" % (self.player, timeControl.title()))
             print("--------------------------------------------------")
             
             if timeControl != 'All Time Controls':
-                rating = dfChess.playerElo.iloc[-1]
+                rating = dfChess.playerElo.iloc[-1] #Get latest ELO
                 print('Current ELO: %s' % rating)
-                peakRating = pd.to_numeric(dfChess.playerElo).max()
+                peakRating = dfChess.playerElo.max() #Get max rating
                 print('Peak ELO: %s' % peakRating)
 
-            print("\n%s played %s games\n\n  Wins %s (%s%%)\n  Draws %s (%s%%)\n  Loses %s (%s%%)" % (player, total_games, games_won, percent_win \
+            print("\n%s played %s games\n\n  Wins %s (%s%%)\n  Draws %s (%s%%)\n  Loses %s (%s%%)" % (self.player, total_games, games_won, percent_win \
                                                                                 , games_drew, percent_draw, games_lost, percent_lost))
 
             #########################################################################
             print('\nMost played opening as')
 
             try:
-                df_whiteGames = get_color_opening(dfChess, 'White')
+                df_whiteGames = get_color_opening(dfChess, 'White') #Get the games played with white
                 color_analysis_print(df_whiteGames)
                 del df_whiteGames
             except:
                 print("    White: No games found")
 
             try:    
-                df_blackGames = get_color_opening(dfChess, 'Black')
+                df_blackGames = get_color_opening(dfChess, 'Black') #Get the games played with black
                 color_analysis_print(df_blackGames)
                 del df_blackGames
             except:
@@ -532,7 +574,8 @@ class chess():
             if ArchEnemy == True:
                 #The opponent the player most played agaisnt
                 df_mostPlayed = dfChess[dfChess.opponent == dfChess.opponent.mode()[0]]
-                print('\n-----------------\n\nArch-enemy: %s\n' % (df_mostPlayed.opponent.iloc[0]))
+                enemy = df_mostPlayed.opponent.iloc[0]
+                print('\n-----------------\n\nArch-enemy: %s\n' % (enemy))
 
                 #Some info to print
                 games_won, games_lost, games_drew, total_games = get_print_info(df_mostPlayed)
@@ -542,7 +585,7 @@ class chess():
                 percent_lost = percent(games_lost, total_games)
 
                 print('%s won %s games out of %s against %s\n' % \
-                    (player, games_won, total_games, df_mostPlayed.opponent.iloc[0]))
+                    (self.player, games_won, total_games, enemy))
 
                 del df_mostPlayed
                 print('  Wins: %s%%\n  Draws: %s%%\n  Loses: %s%%\n' % (percent_win, percent_draw, percent_lost))
